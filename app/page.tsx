@@ -18,6 +18,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { weatherCache } from './utils/cache';
 
 ChartJS.register(
   CategoryScale,
@@ -58,15 +59,27 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchWeatherData = async (lat: number, lon: number) => {
+  const fetchWeatherData = async (latitude: number, longitude: number) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`
-      );
+
+      const response = await fetch('/weather-forecast/api/weather', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ latitude, longitude }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch weather data');
+      }
+
+      const data = await response.json();
       
-      const hourlyData = response.data.hourly;
+      const hourlyData = data.hourly;
       const formattedData = hourlyData.time.map((time: string, index: number) => ({
         time,
         temperature: hourlyData.temperature_2m[index],
@@ -77,9 +90,9 @@ export default function Home() {
       }));
 
       setWeatherData(formattedData);
-      setDailyData(response.data.daily);
+      setDailyData(data.daily);
     } catch (err) {
-      setError('Failed to fetch weather data. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to fetch weather data');
       console.error('Error fetching weather data:', err);
     } finally {
       setLoading(false);

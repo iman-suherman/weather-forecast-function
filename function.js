@@ -17,7 +17,7 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from the out directory
-app.use('/weather-forecast/_next', express.static(path.join(__dirname, 'out/_next'), {
+app.use('/_next', express.static(path.join(__dirname, 'out/_next'), {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
@@ -32,7 +32,7 @@ app.use('/weather-forecast/_next', express.static(path.join(__dirname, 'out/_nex
 }));
 
 // Serve static files from public directory
-app.use('/weather-forecast', express.static(path.join(__dirname, 'out')));
+app.use(express.static(path.join(__dirname, 'out')));
 
 // Handle all other routes
 app.get('*', (req, res) => {
@@ -42,6 +42,10 @@ app.get('*', (req, res) => {
 // Export the Cloud Function
 exports.app = async (req, res) => {
   try {
+    // Remove the function name from the URL path
+    if (req.url.startsWith('/weather-forecast')) {
+      req.url = req.url.replace('/weather-forecast', '');
+    }
     app(req, res);
   } catch (err) {
     console.error('Error occurred handling', req.url, err);
