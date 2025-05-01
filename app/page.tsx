@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { debounce } from 'lodash';
 import CitySearch from './components/CitySearch';
 import DailyForecast from './components/DailyForecast';
 import { Line } from 'react-chartjs-2';
@@ -58,8 +59,23 @@ export default function Home() {
   const [dailyData, setDailyData] = useState<DailyData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchedLocation, setLastFetchedLocation] = useState<[number, number] | null>(null);
 
-  const fetchWeatherData = async (latitude: number, longitude: number) => {
+  // Set initial location to Mascot
+  useEffect(() => {
+    const mascot = cities.find(city => city.name === 'Mascot');
+    if (mascot) {
+      setSelectedLocation([mascot.latitude, mascot.longitude]);
+      setSelectedCity(mascot);
+    }
+  }, []);
+
+  const fetchWeatherData = useCallback(async (latitude: number, longitude: number) => {
+    // Skip if we're already fetching for this location
+    if (lastFetchedLocation?.[0] === latitude && lastFetchedLocation?.[1] === longitude) {
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -72,12 +88,21 @@ export default function Home() {
         body: JSON.stringify({ latitude, longitude }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch weather data');
+        // If we get a rate limit error, use cached data if available
+        if (response.status === 429 && weatherData.length > 0) {
+          console.log('Rate limited, using existing data');
+          return;
+        }
+        throw new Error(data.error || 'Failed to fetch weather data');
       }
 
-      const data = await response.json();
+      // Validate the response data
+      if (!data.hourly || !data.daily) {
+        throw new Error('Invalid weather data received');
+      }
       
       const hourlyData = data.hourly;
       const formattedData = hourlyData.time.map((time: string, index: number) => ({
@@ -91,19 +116,35 @@ export default function Home() {
 
       setWeatherData(formattedData);
       setDailyData(data.daily);
+      setLastFetchedLocation([latitude, longitude]);
+      setError(null); // Clear any previous errors
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch weather data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch weather data';
+      setError(errorMessage);
       console.error('Error fetching weather data:', err);
+      
+      // If we have existing data, keep it instead of showing an error
+      if (weatherData.length > 0) {
+        setError(null);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [lastFetchedLocation, weatherData]);
+
+  // Debounce the weather data fetching
+  const debouncedFetchWeather = useCallback(
+    debounce((latitude: number, longitude: number) => {
+      fetchWeatherData(latitude, longitude);
+    }, 500),
+    [fetchWeatherData]
+  );
 
   useEffect(() => {
     if (selectedLocation[0] !== 0 && selectedLocation[1] !== 0) {
-      fetchWeatherData(selectedLocation[0], selectedLocation[1]);
+      debouncedFetchWeather(selectedLocation[0], selectedLocation[1]);
     }
-  }, [selectedLocation]);
+  }, [selectedLocation, debouncedFetchWeather]);
 
   const getWeatherIcon = (code: number) => {
     // WMO Weather interpretation codes (WW)

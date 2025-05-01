@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { weatherCache } from '../../utils/cache';
 
-function logRequest(latitude: string, longitude: string, status: string, message: string) {
+function logRequest(latitude: string, longitude: string, status: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
   console.log(JSON.stringify({
     timestamp,
@@ -13,33 +13,28 @@ function logRequest(latitude: string, longitude: string, status: string, message
     cacheHit: status === 'CACHE_HIT',
     cacheMiss: status === 'CACHE_MISS',
     error: status === 'ERROR',
-    rateLimited: status === 'RATE_LIMITED'
-  }));
+    rateLimited: status === 'RATE_LIMITED',
+    data: data ? {
+      hourly: {
+        time: data.hourly?.time?.slice(0, 2),
+        temperature: data.hourly?.temperature_2m?.slice(0, 2),
+        weathercode: data.hourly?.weathercode?.slice(0, 2),
+        precipitation: data.hourly?.precipitation_probability?.slice(0, 2)
+      },
+      daily: {
+        time: data.daily?.time?.slice(0, 2),
+        maxTemp: data.daily?.temperature_2m_max?.slice(0, 2),
+        minTemp: data.daily?.temperature_2m_min?.slice(0, 2),
+        precipitation: data.daily?.precipitation_probability_max?.slice(0, 2)
+      }
+    } : undefined
+  }, null, 2));
 }
 
-// Handle both POST and GET methods
 export async function POST(request: Request) {
-  return handleRequest(request);
-}
-
-export async function GET(request: Request) {
-  return handleRequest(request);
-}
-
-async function handleRequest(request: Request) {
   try {
-    let latitude: string | null = null;
-    let longitude: string | null = null;
-
-    if (request.method === 'POST') {
-      const body = await request.json();
-      latitude = body.latitude;
-      longitude = body.longitude;
-    } else {
-      const { searchParams } = new URL(request.url);
-      latitude = searchParams.get('latitude');
-      longitude = searchParams.get('longitude');
-    }
+    const body = await request.json();
+    const { latitude, longitude } = body;
 
     if (!latitude || !longitude) {
       logRequest(latitude || 'null', longitude || 'null', 'ERROR', 'Missing coordinates');
@@ -53,8 +48,15 @@ async function handleRequest(request: Request) {
     const cachedData = weatherCache.get(cacheKey);
     
     if (cachedData) {
-      logRequest(latitude, longitude, 'CACHE_HIT', 'Serving from cache');
+      logRequest(latitude, longitude, 'CACHE_HIT', 'Serving from cache', cachedData);
       return NextResponse.json(cachedData);
+    }
+
+    // Check for any expired cache data
+    const expiredCache = weatherCache.get(cacheKey, true); // true to get expired data
+    if (expiredCache) {
+      logRequest(latitude, longitude, 'CACHE_HIT', 'Serving expired cache', expiredCache);
+      return NextResponse.json(expiredCache);
     }
 
     logRequest(latitude, longitude, 'CACHE_MISS', 'Fetching from API');
@@ -65,10 +67,9 @@ async function handleRequest(request: Request) {
     if (!response.ok) {
       if (response.status === 429) {
         logRequest(latitude, longitude, 'RATE_LIMITED', 'API rate limit exceeded');
-        // If rate limited, try to use cached data even if expired
-        const expiredCache = weatherCache.get(cacheKey);
+        // If rate limited, try to use any available cache data
         if (expiredCache) {
-          logRequest(latitude, longitude, 'CACHE_HIT', 'Serving expired cache due to rate limit');
+          logRequest(latitude, longitude, 'CACHE_HIT', 'Serving expired cache due to rate limit', expiredCache);
           return NextResponse.json(expiredCache);
         }
         return NextResponse.json(
@@ -85,7 +86,7 @@ async function handleRequest(request: Request) {
 
     const data = await response.json();
     weatherCache.set(cacheKey, data);
-    logRequest(latitude, longitude, 'SUCCESS', 'Data fetched and cached successfully');
+    logRequest(latitude, longitude, 'SUCCESS', 'Data fetched and cached successfully', data);
     return NextResponse.json(data);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

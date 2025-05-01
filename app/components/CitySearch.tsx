@@ -15,12 +15,16 @@ const CitySearch = ({ onLocationSelect }: CitySearchProps) => {
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const initialLoadRef = useRef(true);
 
   useEffect(() => {
-    // Set default location to Mascot
-    const mascot = cities.find(city => city.name === 'Mascot');
-    if (mascot) {
-      onLocationSelect([mascot.latitude, mascot.longitude]);
+    // Only set default location on initial load
+    if (initialLoadRef.current) {
+      const mascot = cities.find(city => city.name === 'Mascot');
+      if (mascot) {
+        onLocationSelect([mascot.latitude, mascot.longitude]);
+      }
+      initialLoadRef.current = false;
     }
 
     const handleClickOutside = (event: MouseEvent) => {

@@ -4,44 +4,37 @@ interface CacheItem<T> {
 }
 
 class Cache {
-  private static instance: Cache;
   private cache: Map<string, CacheItem<any>>;
-  private readonly CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+  private readonly duration: number;
 
-  private constructor() {
+  constructor(duration: number = 15 * 60 * 1000) { // 15 minutes default
     this.cache = new Map();
+    this.duration = duration;
   }
 
-  public static getInstance(): Cache {
-    if (!Cache.instance) {
-      Cache.instance = new Cache();
-    }
-    return Cache.instance;
-  }
-
-  public set<T>(key: string, data: T): void {
+  set<T>(key: string, data: T): void {
     this.cache.set(key, {
       data,
-      timestamp: Date.now(),
+      timestamp: Date.now()
     });
   }
 
-  public get<T>(key: string): T | null {
+  get<T>(key: string, includeExpired: boolean = false): T | null {
     const item = this.cache.get(key);
     if (!item) return null;
 
-    const isExpired = Date.now() - item.timestamp > this.CACHE_DURATION;
-    if (isExpired) {
+    const isExpired = Date.now() - item.timestamp > this.duration;
+    if (isExpired && !includeExpired) {
       this.cache.delete(key);
       return null;
     }
 
-    return item.data as T;
+    return item.data;
   }
 
-  public clear(): void {
+  clear(): void {
     this.cache.clear();
   }
 }
 
-export const weatherCache = Cache.getInstance(); 
+export const weatherCache = new Cache(); 
