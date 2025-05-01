@@ -1,10 +1,11 @@
+const functions = require('@google-cloud/functions-framework');
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 
-const server = express();
+const app = express();
 
-server.use((req, res, next) => {
+// CORS middleware
+app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15,8 +16,8 @@ server.use((req, res, next) => {
   next();
 });
 
-// Serve static files from out directory with proper content types
-server.use('/weather-forecast', express.static(path.join(__dirname, 'out'), {
+// Serve static files from the out directory
+app.use('/weather-forecast/_next', express.static(path.join(__dirname, 'out/_next'), {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
@@ -30,27 +31,20 @@ server.use('/weather-forecast', express.static(path.join(__dirname, 'out'), {
   }
 }));
 
-// Handle all requests
-server.all('*', (req, res) => {
-  const requestedPath = req.path;
-  const filePath = path.join(__dirname, 'out', requestedPath);
+// Serve static files from public directory
+app.use('/weather-forecast', express.static(path.join(__dirname, 'out')));
 
-  fs.access(filePath, fs.constants.F_OK, (err) => {
-    if (err) {
-      res.sendFile(path.join(__dirname, 'out', 'index.html'));
-    } else {
-      res.sendFile(filePath);
-    }
-  });
+// Handle all other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'out/index.html'));
 });
 
+// Export the Cloud Function
 exports.app = async (req, res) => {
   try {
-    server(req, res);
+    app(req, res);
   } catch (err) {
     console.error('Error occurred handling', req.url, err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'text/plain');
-    res.end('Internal Server Error');
+    res.status(500).send('Internal Server Error');
   }
 }; 
