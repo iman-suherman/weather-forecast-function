@@ -1,0 +1,39 @@
+{
+  "name": "weather-forecast-function",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "deploy:function": "npm run build && gcloud functions deploy weather-forecast --gen2 --region=asia-southeast2 --runtime=nodejs20 --source=. --entry-point=app --trigger-http --memory=1024MB --timeout=60s --min-instances=0 --max-instances=10 --allow-unauthenticated --set-env-vars=NODE_ENV=production --ingress-settings=all"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "@types/node-fetch": "^2.6.12",
+    "express": "^4.18.2",
+    "next": "^13.4.19",
+    "node-fetch": "^2.7.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
+    "@types/leaflet": "^1.9.8",
+    "axios": "^1.6.7",
+    "date-fns": "^3.3.1",
+    "lodash": "^4.17.21",
+    "@types/lodash": "^4.14.202",
+    "chart.js": "^4.4.1",
+    "react-chartjs-2": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.0.1",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^13.4.19",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.0.0"
+  }
+} 
